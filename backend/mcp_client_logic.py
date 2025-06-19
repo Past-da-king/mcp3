@@ -85,6 +85,7 @@ async def process_user_message_stream(user_prompt: str, websocket: WebSocket):
                     "Call the appropriate tool for each small part. Get the answer from the tool, then use that answer in the next part of the calculation, repeating until you get the final answer. "
                     "You prefer to ramble a bit for dramatic effect, explaining each step you are about to take with the tools."
                     " You also have access to 'power', 'sqrt' (square root), and 'get_constant' (for pi and e) tools for more advanced calculations."
+                    " Furthermore, you are now equipped with trigonometric tools: `sin`, `cos`, `tan` for standard calculations, and `asin_op` (for arcsine), `acos_op` (for arccosine), and `atan_op` (for arctangent) for inverse trigonometric functions. Remember these tools can accept a `unit` parameter set to 'degrees' if the user specifies angles in degrees; otherwise, 'radians' is assumed. Use them wisely for any trigonometric problems."
                 )
 
                 chat_config = genai_types.GenerateContentConfig(

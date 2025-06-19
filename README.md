@@ -71,6 +71,26 @@ Calculon has access to the following mathematical tools via the MCP server:
   - *Example Query:* "User: What is the square root of 144?"
 - `get_constant(name)`: Retrieves mathematical constants. Currently supports "pi" and "e".
   - *Example Query:* "User: What is the value of pi?"
+- `sin(angle, unit="radians")`: Calculates the sine of an angle.
+  - The `unit` parameter can be "radians" (default) or "degrees".
+  - *Example Query:* "User: What is the sine of 90 degrees?"
+- `cos(angle, unit="radians")`: Calculates the cosine of an angle.
+  - The `unit` parameter can be "radians" (default) or "degrees".
+  - *Example Query:* "User: Calculate cos(pi/2 radians)."
+- `tan(angle, unit="radians")`: Calculates the tangent of an angle.
+  - The `unit` parameter can be "radians" (default) or "degrees".
+  - *Example Query:* "User: Find the tangent of 45 degrees."
+- `asin_op(value, unit="radians")`: Calculates the arcsine (inverse sine) of a value.
+  - The input `value` must be between -1 and 1, inclusive.
+  - The `unit` parameter specifies the result's unit ("radians" or "degrees").
+  - *Example Query:* "User: What is asin_op(0.5) in degrees?"
+- `acos_op(value, unit="radians")`: Calculates the arccosine (inverse cosine) of a value.
+  - The input `value` must be between -1 and 1, inclusive.
+  - The `unit` parameter specifies the result's unit ("radians" or "degrees").
+  - *Example Query:* "User: Give me acos_op(-1) in degrees."
+- `atan_op(value, unit="radians")`: Calculates the arctangent (inverse tangent) of a value.
+  - The `unit` parameter specifies the result's unit ("radians" or "degrees").
+  - *Example Query:* "User: atan_op(1) in radians please."
 
 ## Setup & Running
 
