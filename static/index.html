@@ -21,8 +21,10 @@
         .status-message { color: #888; font-style: italic; text-align: center; font-size: 0.9em; padding: 5px 0;}
         #inputArea { display: flex; padding: 10px; }
         #messageInput { flex-grow: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-right: 10px;}
-        #sendButton { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
-        #sendButton:hover { background-color: #0056b3; }
+        #sendButton, #clearChatButton { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 5px; }
+        #sendButton:hover, #clearChatButton:hover { background-color: #0056b3; }
+        #clearChatButton { background-color: #dc3545; }
+        #clearChatButton:hover { background-color: #c82333; }
         .message pre { white-space: pre-wrap; word-wrap: break-word; background: #2d2d2d; color: #f8f8f2; padding: 10px; border-radius: 5px; margin-top: 5px; }
     </style>
 </head>
@@ -33,7 +35,8 @@
         </div>
         <div id="inputArea">
             <input type="text" id="messageInput" placeholder="Ask Calculon...">
-            <button id="sendButton"><i class="fas fa-paper-plane"></i> Send</button>
+            <button id="sendButton" title="Send Message"><i class="fas fa-paper-plane"></i></button>
+            <button id="clearChatButton" title="Clear Chat"><i class="fas fa-trash"></i></button>
         </div>
     </div>
     <script src="/static/js/app.js"></script>
