@@ -4,7 +4,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import sympy
-from mcp.calculater_mcp import mcp # Absolute import
+from calculon_mcp.calculater_mcp import mcp # Updated absolute import
 
 logger = logging.getLogger(__name__)
 

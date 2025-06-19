@@ -1,15 +1,19 @@
 import sys
 import os
 
-# Add project root to sys.path to allow absolute imports like 'from mcp.tools...'
-# This assumes calculater_mcp.py is in project_root/mcp/
+# Add project root to sys.path to allow absolute imports like 'from calculon_mcp.tools...'
+# This assumes calculater_mcp.py is in project_root/calculon_mcp/
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT) # Insert at the beginning
 
 # Now proceed with other imports
 import logging
-from mcp.server.fastmcp import FastMCP # This import needs to be resolvable
+# This import (mcp.server.fastmcp) refers to the INSTALLED mcp library,
+# NOT our local calculon_mcp package. This should resolve correctly if the
+# installed mcp library is in the standard Python path and our PROJECT_ROOT
+# insertion for 'calculon_mcp' does not interfere with it.
+from mcp.server.fastmcp import FastMCP
 
 # Configure basic logging
 # This is important for the MCP server itself and if any direct logging is needed in this file.
@@ -31,14 +35,14 @@ mcp = FastMCP(
 
 logger.info("Importing calculation tools...")
 try:
-    from mcp.tools.arithmetic import add, subtract, multiply, divide
-    from mcp.tools.advanced_math import power, sqrt, get_constant
-    from mcp.tools.trigonometry import sin, cos, tan, asin_op, acos_op, atan_op
-    from mcp.tools.calculus import differentiate, integrate_indefinite
-    from mcp.tools.plotting import plot_expression # This also initializes PLOT_DIR from plotting.py
+    from calculon_mcp.tools.arithmetic import add, subtract, multiply, divide
+    from calculon_mcp.tools.advanced_math import power, sqrt, get_constant
+    from calculon_mcp.tools.trigonometry import sin, cos, tan, asin_op, acos_op, atan_op
+    from calculon_mcp.tools.calculus import differentiate, integrate_indefinite
+    from calculon_mcp.tools.plotting import plot_expression # This also initializes PLOT_DIR from plotting.py
     logger.info("All calculation tools imported successfully.")
 except ImportError as e:
-    logger.error(f"Error importing tools: {e}. Ensure all tool modules and __init__.py files are correct, and that the project root is in PYTHONPATH.")
+    logger.error(f"Error importing local tools from 'calculon_mcp.tools': {e}. Ensure all tool modules and __init__.py files are correct, and that the project root is in PYTHONPATH.")
     # Depending on desired behavior, might raise the error or exit
     raise e
 

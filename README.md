@@ -37,7 +37,7 @@ ss.py                  # Codebase snapshot tool
 backend/
     main.py            # FastAPI backend server
     mcp_client_logic.py# Handles Gemini/MCP logic and WebSocket streaming
-mcp/
+calculon_mcp/  # Renamed from mcp/
     __init__.py
     calculater_mcp.py  # MCP server setup and tool imports
     tools/
@@ -154,9 +154,9 @@ uvicorn main:app --reload --port 8001
 (If `main.py` is in the root, run from the root directory: `uvicorn backend.main:app --reload --port 8001`)
 
 **2. Start the MCP calculator server:**
-Navigate to the `mcp` directory (or project root if `calculater_mcp.py` is there and paths are adjusted):
+Navigate to the `calculon_mcp` directory:
 ```sh
-cd mcp
+cd calculon_mcp
 # If calculater_mcp.py is in the root, adjust path or run from root
 mcp run calculater_mcp.py --transport streamable-http
 # This typically defaults to port 8000. Ensure MCP_SERVER_URL in .env matches.
