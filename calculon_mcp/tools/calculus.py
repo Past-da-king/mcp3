@@ -1,6 +1,6 @@
 import logging
 import sympy
-from calculon_mcp.calculater_mcp import mcp # Updated absolute import
+from calculon_mcp.mcp_base import mcp # Import from new mcp_base
 
 logger = logging.getLogger(__name__)
 
