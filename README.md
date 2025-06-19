@@ -42,9 +42,10 @@ mcp/
 static/
     index.html         # Chat UI
     css/
-        style.css
+        style.css      # Minimal; styles primarily via Tailwind CSS
     js/
-        app.js
+        app.js         # Frontend JavaScript logic
+    plots/             # Directory where generated plot images are stored
 ```
 
 ## How It Works
@@ -99,6 +100,11 @@ Calculon has access to the following mathematical tools via the MCP server:
   - Both `expression_str` and `variable_str` must be provided as strings.
   - Uses the `sympy` library. The result is returned as a string, typically including a constant of integration "C".
   - *Example Query:* "User: Find the indefinite integral of 'exp(x) + 2*x' with respect to 'x'." (Leading to `integrate_indefinite(expression_str='exp(x) + 2*x', variable_str='x')`)
+- `plot_expression(expression_str, variable_str, min_val_str, max_val_str)`: Plots a given mathematical expression over a specified range.
+  - All parameters (`expression_str`, `variable_str`, `min_val_str`, `max_val_str`) must be provided as strings.
+  - Uses `matplotlib`, `numpy`, and `sympy` to generate and save the plot as an image.
+  - Returns a URL (string) pointing to the generated plot image (e.g., `/static/plots/plot_filename.png`). The AI should provide this URL to the user.
+  - *Example Query:* "User: Plot 'x**2 - 3*x + 2' for 'x' from '-5' to '5'." (Leading to `plot_expression(expression_str='x**2 - 3*x + 2', variable_str='x', min_val_str='-5', max_val_str='5')`)
 
 ## Setup & Running
 
@@ -113,7 +119,7 @@ Calculon has access to the following mathematical tools via the MCP server:
 
 Ensure you have Python 3.10 or newer.
 ```sh
-pip install fastapi uvicorn python-dotenv google-generativeai mcp httpx websockets sympy
+pip install fastapi uvicorn python-dotenv google-generativeai mcp httpx websockets sympy matplotlib numpy
 ```
 (Alternatively, if a `requirements.txt` file is provided and up-to-date, `pip install -r requirements.txt` can be used.)
 

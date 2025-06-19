@@ -15,13 +15,23 @@ from mcp_client_logic import process_user_message_stream # We'll create this nex
 app = FastAPI()
 
 BASE_DIR = Path(__file__).resolve().parent
-STATIC_DIR = BASE_DIR.parent / "static"
+STATIC_DIR = BASE_DIR.parent / "static"  # General static files (HTML, CSS, JS)
 INDEX_HTML_FILE = STATIC_DIR / "index.html"
 
+# Define and create directory for plot images
+# This path should correspond to where calculater_mcp.py saves plots.
+# ProjectRoot/static/plots
+PLOT_SAVE_DIR_RELATIVE_TO_PROJECT_ROOT = "static/plots"
+PLOT_STATIC_DIR_ABSOLUTE = BASE_DIR.parent / PLOT_SAVE_DIR_RELATIVE_TO_PROJECT_ROOT
+os.makedirs(PLOT_STATIC_DIR_ABSOLUTE, exist_ok=True)
+
 # Mount static files (HTML, CSS, JS for frontend)
-# Ensure this path is correct relative to where you run uvicorn
-# If running uvicorn from chat_ui_project/, then 'static' is correct
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static_root")
+
+# Mount plot images directory
+# This makes files from ProjectRoot/static/plots available at /static/plots/filename.png
+app.mount("/static/plots", StaticFiles(directory=PLOT_STATIC_DIR_ABSOLUTE), name="static_plots")
+
 
 @app.get("/", response_class=HTMLResponse)
 async def get_chat_page():

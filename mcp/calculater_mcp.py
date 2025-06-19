@@ -2,11 +2,21 @@
 import logging
 import math
 import sympy
+import os
+from datetime import datetime
+import matplotlib.pyplot as plt
+import numpy as np
 from mcp.server.fastmcp import FastMCP
 
 # Configure basic logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(module)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Define and create plot directory
+# Assumes calculater_mcp.py is in mcp/ and static/plots/ is at project_root/static/plots
+PLOT_DIR = os.path.join(os.path.dirname(__file__), '..', 'static', 'plots')
+os.makedirs(PLOT_DIR, exist_ok=True)
+logger.info(f"Plot directory set to: {PLOT_DIR}")
 
 # 1. Create an MCP server instance
 mcp = FastMCP(
@@ -424,6 +434,125 @@ def integrate_indefinite(expression_str: str, variable_str: str) -> str:
     except Exception as e:
         logger.error(f"Unexpected error in integrate_indefinite tool: {e}")
         return f"Error during integration: {str(e)}"
+
+@mcp.tool()
+def plot_expression(expression_str: str, variable_str: str, min_val_str: str, max_val_str: str) -> str:
+    """
+    Plots a mathematical expression over a given range and returns a URL to the image.
+    Expression, variable, and min/max values must be strings.
+
+    Args:
+        expression_str (str): The mathematical expression to plot (e.g., "x**2 - sin(x)").
+        variable_str (str): The variable in the expression (e.g., "x").
+        min_val_str (str): The minimum value of the range for the variable (e.g., "-10").
+        max_val_str (str): The maximum value of the range for the variable (e.g., "10").
+
+    Returns:
+        str: A URL to the saved plot image (e.g., "/static/plots/plot_timestamp.png") or an error message.
+    """
+    logger.info(
+        f"Tool 'plot_expression' called with expression='{expression_str}', variable='{variable_str}', "
+        f"min_val='{min_val_str}', max_val='{max_val_str}'"
+    )
+    try:
+        x_sym = sympy.symbols(variable_str)
+        # Sympyfy with a basic local context including the symbol itself and common constants
+        local_dict = {variable_str: x_sym, 'e': sympy.E, 'pi': sympy.pi}
+        # Add common sympy functions to prevent them from being treated as undefined symbols
+        # This is important if the expression string uses functions like "sin" or "cos"
+        for func_name in ['sin', 'cos', 'tan', 'exp', 'log', 'sqrt']:
+            local_dict[func_name] = getattr(sympy, func_name, None)
+
+        expr = sympy.sympify(expression_str, locals=local_dict)
+
+        try:
+            min_val = float(min_val_str)
+            max_val = float(max_val_str)
+        except ValueError:
+            logger.error("Invalid min/max values: must be numbers.")
+            return "Error: min_val and max_val must be valid numbers."
+
+        if min_val >= max_val:
+            logger.error("Invalid range: min_val must be less than max_val.")
+            return "Error: min_val must be less than max_val."
+
+        # Generate data for plotting
+        # Increased points for smoother curve, especially for complex functions
+        x_vals = np.linspace(min_val, max_val, 300)
+
+        # Lambdify the sympy expression for faster numerical evaluation
+        # Note: Using "numpy" module for lambdify allows it to work with numpy arrays directly
+        # This is generally much faster than iterating and substituting with .evalf()
+        # Ensure all functions in the sympy expression are recognized by numpy or are sympy functions that lambdify can handle.
+        # Common sympy functions (sin, cos, exp, etc.) are usually fine.
+        # For more complex sympy-specific functions, this might need adjustment or fall back to subs/evalf.
+        try:
+            # Check for free symbols other than the plotting variable
+            other_symbols = expr.free_symbols - {x_sym}
+            if other_symbols:
+                # Attempt to substitute common constants if they appear as free symbols due to parsing
+                substitutions = {}
+                for s in other_symbols:
+                    if s.name == 'e': substitutions[s] = sympy.E
+                    elif s.name == 'pi': substitutions[s] = sympy.pi
+                if substitutions:
+                    expr = expr.subs(substitutions)
+
+                # Re-check after substitution
+                other_symbols = expr.free_symbols - {x_sym}
+                if other_symbols:
+                    logger.error(f"Expression contains unassigned variables: {other_symbols}. Cannot plot.")
+                    return f"Error: Expression contains unassigned variables: {', '.join(str(s) for s in other_symbols)}. Please define them or ensure they are part of the main variable '{variable_str}'."
+
+            # If the expression becomes a constant after substitutions (e.g. "pi" or "2+3")
+            if not expr.free_symbols: # No variable in expression, it's a constant
+                 y_val_const = float(expr.evalf())
+                 y_vals = np.full_like(x_vals, y_val_const)
+            else:
+                # Proceed with lambdify if there's a variable
+                # Using 'numpy' module for lambdify for array inputs
+                # For functions like sympy.Heaviside, sympy.DiracDelta, etc., they might need specific handling
+                # or might not be directly translatable to numpy. For common functions, it's okay.
+                f_numpy = sympy.lambdify(x_sym, expr, modules=['numpy'])
+                y_vals = f_numpy(x_vals)
+
+        except Exception as lambdify_eval_e:
+            logger.warning(f"Lambdify/Numpy evaluation failed: {lambdify_eval_e}. Falling back to subs/evalf.")
+            # Fallback for functions not handled well by lambdify's numpy conversion
+            y_vals_num = [expr.subs({x_sym: val}).evalf() for val in x_vals]
+            y_vals = np.array([float(y) for y in y_vals_num])
+
+
+        # Create plot
+        fig, ax = plt.subplots(figsize=(10, 6)) # Slightly larger figure size
+        ax.plot(x_vals, y_vals)
+        ax.set_xlabel(variable_str, fontsize=12)
+        ax.set_ylabel(expression_str, fontsize=12) # Using expression_str might be too long, consider a shorter label or none
+        ax.set_title(f"Plot of f({variable_str}) = {expression_str}", fontsize=14)
+        ax.grid(True, linestyle='--', alpha=0.7)
+        fig.tight_layout() # Adjust layout to prevent labels from being cut off
+
+        # Save plot to file
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        filename = f"plot_{variable_str}_{timestamp}.png" # More descriptive filename
+        filepath = os.path.join(PLOT_DIR, filename)
+
+        plt.savefig(filepath)
+        plt.close(fig)  # Important to free memory
+
+        plot_url = f"/static/plots/{filename}"
+        logger.info(f"Tool 'plot_expression' result: Plot saved at {filepath}, URL: {plot_url}")
+        return plot_url
+
+    except (sympy.SympifyError, TypeError, ValueError) as e:
+        logger.error(f"Error in plot_expression tool (parsing, type, or value error): {e}")
+        return f"Error during plotting (check expression, variable, or range): {str(e)}"
+    except Exception as e:
+        logger.error(f"Unexpected error in plot_expression tool: {e}")
+        # It's good to log the traceback for unexpected errors
+        import traceback
+        logger.error(traceback.format_exc())
+        return f"Error during plotting: {str(e)}"
 
 if __name__ == "__main__":
     print(f"Starting CalculatorStreamableHttpServer (FastMCP application defined).")
