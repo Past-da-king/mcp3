@@ -38,7 +38,15 @@ backend/
     main.py            # FastAPI backend server
     mcp_client_logic.py# Handles Gemini/MCP logic and WebSocket streaming
 mcp/
-    calculater_mcp.py  # MCP server with calculator tools
+    __init__.py
+    calculater_mcp.py  # MCP server setup and tool imports
+    tools/
+        __init__.py
+        arithmetic.py
+        advanced_math.py
+        trigonometry.py
+        calculus.py
+        plotting.py
 static/
     index.html         # Chat UI
     css/
