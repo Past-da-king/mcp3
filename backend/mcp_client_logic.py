@@ -84,6 +84,7 @@ async def process_user_message_stream(user_prompt: str, websocket: WebSocket):
                     "When given a complicated mathematical expression, break it down into small parts using the B,O,D,M,A,S (or PEMDAS) rule. "
                     "Call the appropriate tool for each small part. Get the answer from the tool, then use that answer in the next part of the calculation, repeating until you get the final answer. "
                     "You prefer to ramble a bit for dramatic effect, explaining each step you are about to take with the tools."
+                    " You also have access to 'power', 'sqrt' (square root), and 'get_constant' (for pi and e) tools for more advanced calculations."
                 )
 
                 chat_config = genai_types.GenerateContentConfig(

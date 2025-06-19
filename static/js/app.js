@@ -1,23 +1,87 @@
 
 document.addEventListener('DOMContentLoaded', () => { // Ensure DOM is loaded before accessing elements
 
+    const CHAT_HISTORY_KEY = 'calculonChatHistory';
+
     const messageInput = document.getElementById('messageInput');
     const sendButton = document.getElementById('sendButton');
+    const clearChatButton = document.getElementById('clearChatButton');
     const messagesDiv = document.getElementById('messages');
     let websocket;
 
+    // --- Chat History Functions ---
+    function saveMessageToHistory(messageObject) {
+        try {
+            const history = JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY)) || [];
+            history.push(messageObject);
+            localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(history));
+        } catch (e) {
+            console.error("Error saving message to localStorage:", e);
+        }
+    }
+
+    function loadChatHistory() {
+        try {
+            const history = JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY));
+            if (history && Array.isArray(history)) {
+                messagesDiv.innerHTML = ''; // Clear any existing messages (e.g., initial status)
+                history.forEach(msg => {
+                    switch (msg.type) {
+                        case 'user':
+                            // Call original addMessageToDisplay but prevent re-saving
+                            addMessageToDisplay(msg.type, msg.content, false, true);
+                            break;
+                        case 'ai':
+                            ensureAiMessageBubbleExists();
+                            if (currentAiMessageElement) { // Should exist now
+                                const senderSpan = currentAiMessageElement.querySelector('.sender');
+                                if (senderSpan) senderSpan.innerHTML = `<i class="fas fa-robot fa-fw mr-2"></i>${msg.sender || 'Calculon'}`;
+                                if (currentAiTextContentDiv) currentAiTextContentDiv.innerHTML = msg.htmlContent;
+                            }
+                            startNewAiMessageIfNeeded(); // Finalize this AI message bubble
+                            break;
+                        case 'thought':
+                        case 'tool_call':
+                        case 'error':
+                             // Call original addMessageToDisplay but prevent re-saving
+                            addMessageToDisplay(msg.type, msg.content, msg.type === 'error', true);
+                            break;
+                        case 'status':
+                             // Call original addMessageToDisplay but prevent re-saving
+                            addMessageToDisplay(msg.type, msg.content, false, true);
+                            break;
+                        default:
+                            console.warn("Unknown message type in history:", msg);
+                    }
+                });
+                // After loading all, ensure the view is scrolled to the bottom
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }
+        } catch (e) {
+            console.error("Error loading chat history from localStorage:", e);
+            // Optionally, clear corrupted history: localStorage.removeItem(CHAT_HISTORY_KEY);
+        }
+    }
+
+
     function connectWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        // Ensure this uses the host and port your FastAPI backend is running on.
-        // If your FastAPI runs on 8001, window.location.host will be '127.0.0.1:8001' or 'localhost:8001'
         const wsUrl = `${protocol}//${window.location.host}/ws/chat`;
         
-        addMessageToDisplay('status', `Attempting to connect to ${wsUrl}...`);
+        // Don't add initial connecting message if history will be loaded
+        if (!(JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY))?.length > 0)) {
+            addMessageToDisplay('status', `Attempting to connect to ${wsUrl}...`);
+        }
         console.log(`Attempting to connect to WebSocket at ${wsUrl}`);
         websocket = new WebSocket(wsUrl);
 
         websocket.onopen = () => {
-            addMessageToDisplay('status', 'Connected to Calculon\'s relay.');
+            // Status message for successful connection, avoiding duplicates if history loaded one.
+            if (messagesDiv.lastChild && messagesDiv.lastChild.textContent !== 'Connected to Calculon\'s relay.') {
+                 addMessageToDisplay('status', 'Connected to Calculon\'s relay.');
+            } else if (!messagesDiv.lastChild) { // If chat was empty
+                 addMessageToDisplay('status', 'Connected to Calculon\'s relay.');
+            }
             console.log('WebSocket connected');
             messageInput.disabled = false;
             sendButton.disabled = false;
@@ -33,7 +97,7 @@ document.addEventListener('DOMContentLoaded', () => { // Ensure DOM is loaded be
                     appendAiMessageChunk(data.content);
                     break;
                 case 'thought':
-                    addMessageToDisplay('thought', `${data.content}`); // Removed "Calculon's thought:" prefix here, as it's in the styling
+                    addMessageToDisplay('thought', `${data.content}`);
                     startNewAiMessageIfNeeded(); 
                     break;
                 case 'tool_call':
@@ -41,25 +105,29 @@ document.addEventListener('DOMContentLoaded', () => { // Ensure DOM is loaded be
                     startNewAiMessageIfNeeded();
                     break;
                 case 'tool_response':
-                    addMessageToDisplay('tool_call', `Tool ${data.content.name} responded.`); // Style as tool_call
+                    addMessageToDisplay('tool_call', `Tool ${data.content.name} responded.`);
                     startNewAiMessageIfNeeded();
                     break;
                 case 'status':
                     addMessageToDisplay('status', data.content);
                     break;
                 case 'mcp_tools':
-                    // This is just an example of handling a custom message type
-                    // addMessageToDisplay('status', `Available MCP Tools: ${data.content.join(', ')}`);
                     console.log(`Available MCP Tools from server: ${data.content.join(', ')}`);
                     break;
                 case 'stream_end':
-                    addMessageToDisplay('status', data.content);
+                    // Save any pending AI message before processing the stream_end status
+                    if (currentAiMessageElement && currentAiTextContentDiv && currentAiTextContentDiv.innerHTML.trim() !== '') {
+                        saveMessageToHistory({ type: 'ai', sender: 'Calculon', htmlContent: currentAiTextContentDiv.innerHTML });
+                    }
+                    addMessageToDisplay('status', data.content); // This will save the status message
                     currentAiMessageElement = null; // Reset for next AI message
+                    currentAiTextContentDiv = null;
                     messageInput.focus();
                     break;
                 case 'error':
-                    addMessageToDisplay('error', `Error from server: ${data.content}`, true);
-                    currentAiMessageElement = null;
+                    addMessageToDisplay('error', `Error from server: ${data.content}`);
+                    currentAiMessageElement = null; // Reset AI state on error
+                    currentAiTextContentDiv = null;
                     break;
                 default:
                     console.warn('Unknown message type received:', data.type, data);
@@ -91,8 +159,14 @@ document.addEventListener('DOMContentLoaded', () => { // Ensure DOM is loaded be
     let currentAiMessageElement = null;
     let currentAiTextContentDiv = null;
 
-    function addMessageToDisplay(type, text, isError = false) {
-        currentAiMessageElement = null; // New message, so not appending to previous AI
+    // Modified to prevent re-saving when loading from history
+    function addMessageToDisplay(type, text, isError = false, isLoadingHistory = false) {
+        // Save any pending AI message before adding a new non-chunk message
+        if (!isLoadingHistory && currentAiMessageElement && currentAiTextContentDiv && currentAiTextContentDiv.innerHTML.trim() !== '') {
+            saveMessageToHistory({ type: 'ai', sender: 'Calculon', htmlContent: currentAiTextContentDiv.innerHTML });
+        }
+        // For all message types (including AI messages that are now complete), reset current AI tracking
+        currentAiMessageElement = null;
         currentAiTextContentDiv = null;
 
         const messageWrapper = document.createElement('div');
@@ -107,39 +181,46 @@ document.addEventListener('DOMContentLoaded', () => { // Ensure DOM is loaded be
         switch (type) {
             case 'user':
                 messageWrapper.classList.add('flex', 'justify-end');
-                messageElement.classList.add('user-message'); // Tailwind: bg-blue-500 text-white
+                messageElement.classList.add('user-message');
                 messageElement.textContent = text;
+                if (!isLoadingHistory) saveMessageToHistory({ type: 'user', content: text });
                 break;
             case 'thought':
                 messageWrapper.classList.add('flex', 'justify-start');
-                messageElement.classList.add('thought-message'); // Tailwind: bg-yellow-100 text-yellow-800 border-yellow-400
+                messageElement.classList.add('thought-message');
                 iconHtml = '<i class="fas fa-brain fa-fw mr-2"></i>';
                 senderText = 'Calculon\'s Internal Monologue';
                 messageElement.innerHTML = `<span class="sender block font-semibold mb-1">${iconHtml}${senderText}</span>${escapeHtmlAndPreserveFormatting(text)}`;
+                if (!isLoadingHistory) saveMessageToHistory({ type: 'thought', sender: senderText, content: text });
                 break;
             case 'tool_call':
                  messageWrapper.classList.add('flex', 'justify-start');
-                messageElement.classList.add('tool-call-message'); // Tailwind: bg-indigo-100 text-indigo-800 border-indigo-400
+                messageElement.classList.add('tool-call-message');
                 iconHtml = '<i class="fas fa-wrench fa-fw mr-2"></i>';
                 senderText = 'Tool Interaction';
                 messageElement.innerHTML = `<span class="sender block font-semibold mb-1">${iconHtml}${senderText}</span>${escapeHtmlAndPreserveFormatting(text)}`;
+                if (!isLoadingHistory) saveMessageToHistory({ type: 'tool_call', sender: senderText, content: text });
                 break;
             case 'status':
-                messageWrapper.classList.add('status-wrapper'); // No flex by default for status
-                messageElement.classList.add('status-message'); // Tailwind: text-gray-500 italic text-center text-sm
+                messageWrapper.classList.add('status-wrapper');
+                messageElement.classList.add('status-message');
                 messageElement.textContent = text;
+                // Avoid saving repetitive status messages or very initial ones if not desired.
+                // For now, saving all status messages.
+                if (!isLoadingHistory) saveMessageToHistory({ type: 'status', content: text });
                 break;
             case 'error':
-                messageWrapper.classList.add('flex', 'justify-start'); // Or center, depending on desired error appearance
-                messageElement.classList.add('error-message'); // Tailwind: bg-red-100 text-red-700 border-red-400
+                messageWrapper.classList.add('flex', 'justify-start');
+                messageElement.classList.add('error-message');
                 iconHtml = '<i class="fas fa-exclamation-triangle fa-fw mr-2"></i>';
                 senderText = 'System Error';
                 messageElement.innerHTML = `<span class="sender block font-semibold mb-1">${iconHtml}${senderText}</span>${escapeHtmlAndPreserveFormatting(text)}`;
+                if (!isLoadingHistory) saveMessageToHistory({ type: 'error', sender: senderText, content: text });
                 break;
-            // AI text chunks are handled by startNewAiMessageIfNeeded and appendAiMessageChunk
         }
         
-        if (type !== 'text_chunk') { // text_chunk is handled differently
+        // This part remains for display, AI chunks are handled by appendAiMessageChunk
+        if (type !== 'text_chunk') {
             messageWrapper.appendChild(messageElement);
             messagesDiv.appendChild(messageWrapper);
         }
@@ -147,14 +228,17 @@ document.addEventListener('DOMContentLoaded', () => { // Ensure DOM is loaded be
     }
     
     function startNewAiMessageIfNeeded() {
-        // This function ensures that thoughts or tool calls create a new bubble
-        // before any subsequent AI text starts appending to a new text bubble.
-        if (currentAiMessageElement) { // If there was an AI text bubble being appended to
-            currentAiMessageElement = null; // Force a new one for the next text_chunk
+        // This function is called when a new non-AI message starts,
+        // or when an AI stream ends, to finalize the current AI bubble.
+        // The saving of the AI message content should have happened just before this in addMessageToDisplay or stream_end.
+        if (currentAiMessageElement) {
+            currentAiMessageElement = null;
             currentAiTextContentDiv = null;
         }
     }
 
+    // ensureAiMessageBubbleExists is now primarily for display during streaming or loading history.
+    // Saving of the AI message happens when it's complete.
     function ensureAiMessageBubbleExists() {
         if (!currentAiMessageElement) {
             const messageWrapper = document.createElement('div');
@@ -168,7 +252,7 @@ document.addEventListener('DOMContentLoaded', () => { // Ensure DOM is loaded be
             senderSpan.innerHTML = '<i class="fas fa-robot fa-fw mr-2"></i>Calculon';
             currentAiMessageElement.appendChild(senderSpan);
 
-            currentAiTextContentDiv = document.createElement('div');
+            currentAiTextContentDiv = document.createElement('div'); // This is where AI text goes
             currentAiTextContentDiv.classList.add('ai-text-content');
             currentAiMessageElement.appendChild(currentAiTextContentDiv);
             
@@ -178,15 +262,15 @@ document.addEventListener('DOMContentLoaded', () => { // Ensure DOM is loaded be
     }
 
     function appendAiMessageChunk(textChunk) {
-        ensureAiMessageBubbleExists(); // Make sure we have an AI message bubble
+        ensureAiMessageBubbleExists();
         if (currentAiTextContentDiv) {
-            // Append formatted text. `escapeHtmlAndPreserveFormatting` handles <br> for newlines.
             currentAiTextContentDiv.innerHTML += escapeHtmlAndPreserveFormatting(textChunk);
         }
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
     
-    function escapeHtml(unsafe) {
+    // escapeHtml and escapeHtmlAndPreserveFormatting remain unchanged for now
+     function escapeHtml(unsafe) {
         if (unsafe === null || typeof unsafe === 'undefined') return '';
         return unsafe
              .toString()
@@ -245,10 +329,28 @@ document.addEventListener('DOMContentLoaded', () => { // Ensure DOM is loaded be
         console.error("Message input not found!");
     }
 
-    // Initialize: Disable inputs and attempt to connect
+    // Initialize: Disable inputs
     if (messageInput) messageInput.disabled = true;
     if (sendButton) sendButton.disabled = true;
+
+    if (clearChatButton) {
+        clearChatButton.addEventListener('click', () => {
+            if (messagesDiv) {
+                messagesDiv.innerHTML = '';
+                localStorage.removeItem(CHAT_HISTORY_KEY);
+                addMessageToDisplay('status', 'Chat cleared and history erased.');
+                currentAiMessageElement = null;
+                currentAiTextContentDiv = null;
+                console.log('Chat cleared and history erased by user.');
+            } else {
+                console.error("Messages div not found for clearing chat!");
+            }
+        });
+    } else {
+        console.error("Clear Chat button not found!");
+    }
     
+    loadChatHistory(); // Load history before connecting WebSocket
     connectWebSocket();
 
 }); // End of DOMContentLoaded
