@@ -3,7 +3,7 @@ import asyncio
 import os
 from google import genai
 from google.genai import types as genai_types
-from google.api_core import exceptions as google_api_exceptions # Added for better error handling
+from google.genai import errors as google_genai_errors # Corrected import
 
 # Correctly import McpError
 from mcp.shared.exceptions import McpError
@@ -222,12 +222,12 @@ async def process_user_message_stream(user_prompt: str, websocket: WebSocket):
                         update_chat_history(ws_id, current_history)
                         logger.info(f"Model response for {ws_id} added to history. New length: {len(current_history)}")
 
-                except google_api_exceptions.GoogleAPIError as genai_stream_e:
+                except google_genai_errors.APIError as genai_stream_e: # Corrected exception type
                     # Even if stream fails, update history with what we have so far (user message)
                     update_chat_history(ws_id, current_history)
-                    print(f"Google API Error during stream: {genai_stream_e}") # Updated print message
+                    print(f"Gemini API Error during stream: {genai_stream_e}") # Reverted print message
                     traceback.print_exc()
-                    await send_websocket_message(websocket, "error", f"Google API Error during processing: {str(genai_stream_e)}")
+                    await send_websocket_message(websocket, "error", f"Gemini API Error during processing: {str(genai_stream_e)}")
                 except Exception as e_gemini_stream:
                     print(f"Unexpected error during Gemini stream: {e_gemini_stream}")
                     traceback.print_exc()
@@ -237,10 +237,10 @@ async def process_user_message_stream(user_prompt: str, websocket: WebSocket):
         print(f"MCP Connection/Interaction Error: {mcp_e}")
         traceback.print_exc()
         await send_websocket_message(websocket, "error", f"MCP Error: {str(mcp_e)}")
-    except google_api_exceptions.GoogleAPIError as genai_e: # Updated exception type
-        print(f"Google API Error (general): {genai_e}") # Updated print message
+    except google_genai_errors.APIError as genai_e: # Corrected exception type
+        print(f"Gemini API Error (general): {genai_e}") # Reverted print message
         traceback.print_exc()
-        await send_websocket_message(websocket, "error", f"Google API Error: {str(genai_e)}")
+        await send_websocket_message(websocket, "error", f"Gemini API Error: {str(genai_e)}")
     except json.JSONDecodeError as json_e:
         print(f"JSON Decode Error (from client message): {json_e}")
         traceback.print_exc()
