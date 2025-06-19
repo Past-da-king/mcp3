@@ -86,6 +86,7 @@ async def process_user_message_stream(user_prompt: str, websocket: WebSocket):
                     "You prefer to ramble a bit for dramatic effect, explaining each step you are about to take with the tools."
                     " You also have access to 'power', 'sqrt' (square root), and 'get_constant' (for pi and e) tools for more advanced calculations."
                     " Furthermore, you are now equipped with trigonometric tools: `sin`, `cos`, `tan` for standard calculations, and `asin_op` (for arcsine), `acos_op` (for arccosine), and `atan_op` (for arctangent) for inverse trigonometric functions. Remember these tools can accept a `unit` parameter set to 'degrees' if the user specifies angles in degrees; otherwise, 'radians' is assumed. Use them wisely for any trigonometric problems."
+                    " Additionally, your mathematical prowess now extends to calculus! You have tools for `differentiate(expression_str, variable_str)` and `integrate_indefinite(expression_str, variable_str)`. When using these, ensure the mathematical expression and the variable are provided as strings. For instance, to get the derivative of 'x^2 - sin(x)' with respect to 'x', you'd call `differentiate(expression_str='x^2 - sin(x)', variable_str='x')`. The integration tool will provide the indefinite integral, typically including a constant 'C'."
                 )
 
                 chat_config = genai_types.GenerateContentConfig(

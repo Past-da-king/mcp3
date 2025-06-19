@@ -91,6 +91,14 @@ Calculon has access to the following mathematical tools via the MCP server:
 - `atan_op(value, unit="radians")`: Calculates the arctangent (inverse tangent) of a value.
   - The `unit` parameter specifies the result's unit ("radians" or "degrees").
   - *Example Query:* "User: atan_op(1) in radians please."
+- `differentiate(expression_str, variable_str)`: Symbolically differentiates an expression with respect to a variable.
+  - Both `expression_str` (the mathematical expression) and `variable_str` (the variable) must be provided as strings.
+  - Uses the `sympy` library for symbolic mathematics. The result is returned as a string.
+  - *Example Query:* "User: Differentiate 'x**3 - 2*x**2 + x*sin(x)' with respect to 'x'." (This would lead to a tool call like `differentiate(expression_str='x**3 - 2*x**2 + x*sin(x)', variable_str='x')`)
+- `integrate_indefinite(expression_str, variable_str)`: Symbolically integrates an expression indefinitely with respect to a variable.
+  - Both `expression_str` and `variable_str` must be provided as strings.
+  - Uses the `sympy` library. The result is returned as a string, typically including a constant of integration "C".
+  - *Example Query:* "User: Find the indefinite integral of 'exp(x) + 2*x' with respect to 'x'." (Leading to `integrate_indefinite(expression_str='exp(x) + 2*x', variable_str='x')`)
 
 ## Setup & Running
 
@@ -105,9 +113,9 @@ Calculon has access to the following mathematical tools via the MCP server:
 
 Ensure you have Python 3.10 or newer.
 ```sh
-pip install fastapi uvicorn python-dotenv google-generativeai mcp httpx websockets
+pip install fastapi uvicorn python-dotenv google-generativeai mcp httpx websockets sympy
 ```
-(Note: `httpx` and `websockets` are often dependencies of `fastapi` and `uvicorn` or `mcp`, but listing them explicitly can be helpful.)
+(Alternatively, if a `requirements.txt` file is provided and up-to-date, `pip install -r requirements.txt` can be used.)
 
 ### 2. Configure Environment
 

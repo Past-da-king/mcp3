@@ -1,6 +1,7 @@
 # calculator_mcp_server_streamablehttp.py (Simplified run for Uvicorn defaults)
 import logging
 import math
+import sympy
 from mcp.server.fastmcp import FastMCP
 
 # Configure basic logging
@@ -314,6 +315,115 @@ def atan_op(value: float, unit: str = "radians") -> float | str:
 
     logger.info(f"Tool 'atan_op' result: {result} {unit_lower}")
     return result
+
+@mcp.tool()
+def differentiate(expression_str: str, variable_str: str) -> str:
+    """
+    Symbolically differentiates an expression with respect to a variable.
+    Expression and variable must be strings.
+
+    Args:
+        expression_str (str): The mathematical expression to differentiate (e.g., "x**2 + sin(x)").
+        variable_str (str): The variable to differentiate with respect to (e.g., "x").
+
+    Returns:
+        str: The differentiated expression as a string, or an error message.
+    """
+    logger.info(f"Tool 'differentiate' called with expression='{expression_str}', variable='{variable_str}'")
+    try:
+        # Attempt to create a symbol for the variable
+        # We should handle cases where variable_str might not be a valid symbol name
+        # or if it conflicts with existing sympy functions if not careful with sympify's context.
+        var_symbols = sympy.symbols(variable_str)
+
+        # If variable_str is a comma-separated list of variables, symbols() returns a tuple.
+        # We assume a single variable for differentiation for simplicity here.
+        if isinstance(var_symbols, tuple):
+            if len(var_symbols) == 1:
+                x = var_symbols[0]
+            else:
+                logger.error("Differentiate tool currently supports differentiation with respect to a single variable only.")
+                return "Error: Differentiation with respect to multiple variables simultaneously is not supported. Please specify one variable."
+        else:
+            x = var_symbols
+
+        # Provide a basic local context for sympify, including the symbol itself.
+        # This allows expressions like "x**2" to be parsed correctly.
+        # Add other common math functions/constants if needed and if they don't clash.
+        # For many common functions like sin, cos, exp, sympy's sympify will parse them automatically.
+        local_dict = {variable_str: x, 'e': sympy.E, 'pi': sympy.pi}
+
+        expr = sympy.sympify(expression_str, locals=local_dict)
+
+        # Ensure the expression contains the variable of differentiation
+        if x not in expr.free_symbols:
+            # This check is useful but might be too strict if the variable is part of a constant's definition
+            # that gets simplified away before this check. However, for typical use cases it's good.
+            logger.warning(f"Variable '{variable_str}' not found in expression '{expression_str}' or expression is constant with respect to it.")
+            # Depending on desired behavior, could return 0 if var not in free_symbols,
+            # but warning and proceeding is also an option as sympy.diff will handle it.
+            # For now, we'll let sympy.diff produce 0 if that's the case.
+
+        derivative_expr = sympy.diff(expr, x)
+        result_str = str(derivative_expr)
+        logger.info(f"Tool 'differentiate' result: {result_str}")
+        return result_str
+    except (sympy.SympifyError, TypeError, ValueError) as e:
+        logger.error(f"Error in differentiate tool (parsing or type error): {e}")
+        return f"Error during differentiation (check expression or variable): {str(e)}"
+    except Exception as e:
+        logger.error(f"Unexpected error in differentiate tool: {e}")
+        return f"Error during differentiation: {str(e)}"
+
+@mcp.tool()
+def integrate_indefinite(expression_str: str, variable_str: str) -> str:
+    """
+    Symbolically integrates an expression indefinitely with respect to a variable.
+    Expression and variable must be strings. Includes the constant of integration "C".
+
+    Args:
+        expression_str (str): The mathematical expression to integrate (e.g., "2*x + cos(x)").
+        variable_str (str): The variable to integrate with respect to (e.g., "x").
+
+    Returns:
+        str: The integrated expression (antiderivative) as a string, with "+ C", or an error message.
+    """
+    logger.info(f"Tool 'integrate_indefinite' called with expression='{expression_str}', variable='{variable_str}'")
+    try:
+        var_symbols = sympy.symbols(variable_str)
+        if isinstance(var_symbols, tuple):
+            if len(var_symbols) == 1:
+                x = var_symbols[0]
+            else:
+                logger.error("Integrate tool currently supports integration with respect to a single variable only.")
+                return "Error: Integration with respect to multiple variables simultaneously is not supported. Please specify one variable."
+        else:
+            x = var_symbols
+
+        local_dict = {variable_str: x, 'e': sympy.E, 'pi': sympy.pi}
+        expr = sympy.sympify(expression_str, locals=local_dict)
+
+        # It's good practice to ensure the variable is in the expression for clarity,
+        # though integrate will handle constants correctly.
+        # if x not in expr.free_symbols:
+        #    logger.warning(f"Variable '{variable_str}' not found in expression '{expression_str}'. The expression might be treated as a constant.")
+
+        integral_expr = sympy.integrate(expr, x)
+
+        # Add the constant of integration, C
+        # Create a sympy symbol for C to ensure it's treated as a symbol in the string output
+        C = sympy.Symbol("C")
+        result_with_C = integral_expr + C
+        result_str = str(result_with_C)
+
+        logger.info(f"Tool 'integrate_indefinite' result: {result_str}")
+        return result_str
+    except (sympy.SympifyError, TypeError, ValueError) as e:
+        logger.error(f"Error in integrate_indefinite tool (parsing or type error): {e}")
+        return f"Error during integration (check expression or variable): {str(e)}"
+    except Exception as e:
+        logger.error(f"Unexpected error in integrate_indefinite tool: {e}")
+        return f"Error during integration: {str(e)}"
 
 if __name__ == "__main__":
     print(f"Starting CalculatorStreamableHttpServer (FastMCP application defined).")
