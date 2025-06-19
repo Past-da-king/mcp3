@@ -1,5 +1,5 @@
 import logging
-from ..calculater_mcp import mcp # Assuming mcp instance is in calculater_mcp
+from mcp.calculater_mcp import mcp # Absolute import
 
 logger = logging.getLogger(__name__)
 

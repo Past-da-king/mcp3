@@ -12,6 +12,21 @@ from mcp.client.streamable_http import streamablehttp_client
 from fastapi import WebSocket
 import json
 import traceback
+import logging # Added for history management logging
+
+# --- Global Store for Conversation Histories ---
+active_conversations = {}
+MAX_HISTORY_TURNS = 10  # Max user/model turns to keep. 1 turn = 1 user msg + 1 model msg
+MAX_HISTORY_ITEMS = MAX_HISTORY_TURNS * 2
+
+# --- Logger for this module ---
+# Using existing print for some things, but adding a logger for history functions specifically
+logger = logging.getLogger(__name__)
+# Ensure basicConfig is called somewhere, e.g. in main.py or here if not already.
+# For now, assuming it's configured elsewhere or relying on root logger config.
+# If not, uncomment and configure:
+# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(module)s - %(message)s')
+
 
 # --- Configuration ---
 GOOGLE_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -55,8 +70,28 @@ async def send_websocket_message(websocket: WebSocket, message_type: str, conten
     except Exception as e:
         print(f"Error sending WebSocket message: {e}")
 
+# --- Chat History Management Functions ---
+def initialize_chat_history(websocket_id: int):
+    active_conversations[websocket_id] = []
+    logger.info(f"Initialized chat history for WebSocket ID: {websocket_id}")
+
+def cleanup_chat_history(websocket_id: int):
+    if websocket_id in active_conversations:
+        del active_conversations[websocket_id]
+        logger.info(f"Cleaned up chat history for WebSocket ID: {websocket_id}")
+    else:
+        logger.info(f"Attempted to clean up non-existent chat history for WebSocket ID: {websocket_id}")
+
+def get_chat_history(websocket_id: int) -> list[genai_types.Content]:
+    return active_conversations.get(websocket_id, [])
+
+def update_chat_history(websocket_id: int, new_history: list[genai_types.Content]):
+    active_conversations[websocket_id] = new_history
+    # logger.debug(f"Updated chat history for WebSocket ID: {websocket_id}. History length: {len(new_history)}")
+
 
 async def process_user_message_stream(user_prompt: str, websocket: WebSocket):
+    ws_id = id(websocket)
     if not GOOGLE_API_KEY:
         await send_websocket_message(websocket, "error", "GEMINI_API_KEY is not configured on the server.")
         return
@@ -99,13 +134,23 @@ async def process_user_message_stream(user_prompt: str, websocket: WebSocket):
                     )
                 )
                 
-                contents_for_gemini = [
-                    genai_types.Content(role="user", parts=[genai_types.Part(text=user_prompt)])
-                ]
+                # Retrieve current history and append user message
+                current_history = get_chat_history(ws_id)
+                user_content = genai_types.Content(role="user", parts=[genai_types.Part(text=user_prompt)])
+                current_history.append(user_content)
+
+                # History Truncation
+                if len(current_history) > MAX_HISTORY_ITEMS:
+                    current_history = current_history[-MAX_HISTORY_ITEMS:]
+                    logger.info(f"History for {ws_id} truncated to last {MAX_HISTORY_ITEMS} items.")
+
+                # This will be used to send to Gemini
+                contents_for_gemini = current_history
+                model_parts_accumulator = []
 
                 try:
                     stream = await client.aio.models.generate_content_stream(
-                        model="gemini-2.5-flash",
+                        model="gemini-2.5-flash", # Consider making model configurable
                         contents=contents_for_gemini,
                         config=chat_config
                     )
@@ -113,6 +158,22 @@ async def process_user_message_stream(user_prompt: str, websocket: WebSocket):
                     async for chunk in stream:
                         if chunk.candidates:
                             for part in chunk.candidates[0].content.parts:
+                                # Accumulate parts for history
+                                if hasattr(part, 'text') and part.text is not None:
+                                    model_parts_accumulator.append(genai_types.Part(text=part.text))
+                                elif hasattr(part, 'function_call') and part.function_call is not None:
+                                    model_parts_accumulator.append(genai_types.Part(function_call=part.function_call))
+                                # Note: function_response parts are added by Gemini from our tool calls,
+                                # but for history, we only need to store what the *model* decided to do (call)
+                                # and what it said (text). The actual response from the tool is part of the
+                                # next turn's context that Gemini receives.
+                                # However, if Gemini itself formulates a function_response (e.g. from a previous turn),
+                                # it should be captured if it appears in `chunk.candidates[0].content.parts`.
+                                # The current MCP client session handles function responses by sending them back
+                                # to Gemini, so they become part of the history naturally in the next user turn.
+                                # For now, we primarily care about model's text and function_call intentions.
+
+                                # Send to WebSocket as before
                                 is_thought_summary = hasattr(part, 'thought') and part.thought
                                 has_text = hasattr(part, 'text') and part.text
 
@@ -126,7 +187,7 @@ async def process_user_message_stream(user_prompt: str, websocket: WebSocket):
                                         "name": part.function_call.name,
                                         "args": args_dict
                                     })
-                                elif part.function_response:
+                                elif part.function_response: # This part might be less common from model directly
                                     response_dict = {}
                                     if hasattr(part.function_response, 'response') and part.function_response.response is not None:
                                         try:
@@ -137,6 +198,8 @@ async def process_user_message_stream(user_prompt: str, websocket: WebSocket):
                                         "name": part.function_response.name,
                                         "response": response_dict
                                     })
+                                    # Also add to model accumulator if it's a direct model response part
+                                    model_parts_accumulator.append(genai_types.Part(function_response=part.function_response))
                                 elif has_text:
                                     await send_websocket_message(websocket, "text_chunk", part.text)
                         
@@ -151,7 +214,16 @@ async def process_user_message_stream(user_prompt: str, websocket: WebSocket):
                     
                     await send_websocket_message(websocket, "stream_end", "Calculation complete.")
 
+                    # After successfully processing the stream and sending stream_end
+                    if model_parts_accumulator:
+                        model_content = genai_types.Content(role="model", parts=model_parts_accumulator)
+                        current_history.append(model_content)
+                        update_chat_history(ws_id, current_history)
+                        logger.info(f"Model response for {ws_id} added to history. New length: {len(current_history)}")
+
                 except genai.APIError as genai_stream_e:
+                    # Even if stream fails, update history with what we have so far (user message)
+                    update_chat_history(ws_id, current_history)
                     print(f"Gemini API Error during stream: {genai_stream_e}")
                     traceback.print_exc()
                     await send_websocket_message(websocket, "error", f"Gemini API Error during processing: {str(genai_stream_e)}")

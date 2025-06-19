@@ -22,14 +22,14 @@ mcp = FastMCP(
 
 logger.info("Importing calculation tools...")
 try:
-    from .tools.arithmetic import add, subtract, multiply, divide
-    from .tools.advanced_math import power, sqrt, get_constant
-    from .tools.trigonometry import sin, cos, tan, asin_op, acos_op, atan_op
-    from .tools.calculus import differentiate, integrate_indefinite
-    from .tools.plotting import plot_expression # This also initializes PLOT_DIR from plotting.py
+    from mcp.tools.arithmetic import add, subtract, multiply, divide
+    from mcp.tools.advanced_math import power, sqrt, get_constant
+    from mcp.tools.trigonometry import sin, cos, tan, asin_op, acos_op, atan_op
+    from mcp.tools.calculus import differentiate, integrate_indefinite
+    from mcp.tools.plotting import plot_expression # This also initializes PLOT_DIR from plotting.py
     logger.info("All calculation tools imported successfully.")
 except ImportError as e:
-    logger.error(f"Error importing tools: {e}. Ensure all tool modules and __init__.py files are correct.")
+    logger.error(f"Error importing tools: {e}. Ensure all tool modules and __init__.py files are correct, and that the project root is in PYTHONPATH.")
     # Depending on desired behavior, might raise the error or exit
     raise e
 

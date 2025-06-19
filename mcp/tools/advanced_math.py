@@ -1,6 +1,6 @@
 import logging
 import math
-from ..calculater_mcp import mcp
+from mcp.calculater_mcp import mcp # Absolute import
 
 logger = logging.getLogger(__name__)
 

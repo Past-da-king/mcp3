@@ -10,7 +10,11 @@ import json
 
 # Add backend directory to sys.path to import mcp_client_logic
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from mcp_client_logic import process_user_message_stream # We'll create this next
+from mcp_client_logic import (
+    process_user_message_stream,
+    initialize_chat_history,
+    cleanup_chat_history
+)
 
 app = FastAPI()
 
@@ -45,7 +49,10 @@ async def get_chat_page():
 @app.websocket("/ws/chat")
 async def websocket_chat_endpoint(websocket: WebSocket):
     await websocket.accept()
-    print("WebSocket connection accepted.")
+    ws_id = id(websocket)
+    initialize_chat_history(ws_id)
+    print(f"WebSocket connection accepted from {websocket.client.host}:{websocket.client.port}, ID: {ws_id}")
+
     try:
         while True:
             user_message_json = await websocket.receive_text()
@@ -60,8 +67,18 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                 await websocket.send_json({"type": "error", "content": "Empty message received."})
 
     except WebSocketDisconnect:
-        print("WebSocket connection closed.")
+        print(f"WebSocket connection closed for ID: {ws_id}")
     except Exception as e:
-        print(f"Error in WebSocket handler: {e}")
-        await websocket.send_json({"type": "error", "content": f"Server error: {str(e)}"})
-        await websocket.close(code=1011) # Internal server error
+        print(f"Error in WebSocket handler for ID {ws_id}: {e}")
+        # It's good practice to try and inform the client if possible,
+        # but the connection might already be compromised.
+        try:
+            await websocket.send_json({"type": "error", "content": f"Server error: {str(e)}"})
+        except Exception: # Catch error if send fails (e.g. broken pipe)
+            pass
+        # Ensure close is called if not a disconnect exception
+        if not isinstance(e, WebSocketDisconnect):
+            await websocket.close(code=1011) # Internal server error
+    finally:
+        cleanup_chat_history(ws_id)
+        print(f"WebSocket resources cleaned up for ID: {ws_id}")
