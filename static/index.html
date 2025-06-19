@@ -4,39 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Calculon Chat</title>
-    <link rel="stylesheet" href="/static/css/style.css"> <!-- We'll add Tailwind later -->
-    <!-- Font Awesome (Get your kit code from fontawesome.com or use CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <style>
-        /* Basic temporary styles */
-        body { font-family: sans-serif; margin: 0; padding: 20px; background-color: #f4f4f4; }
-        #chatContainer { max-width: 700px; margin: auto; background-color: #fff; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); overflow: hidden;}
-        #messages { height: 400px; overflow-y: auto; padding: 20px; border-bottom: 1px solid #eee; }
-        .message { margin-bottom: 15px; padding: 10px; border-radius: 6px; line-height: 1.4; }
-        .user-message { background-color: #e1f5fe; text-align: right; margin-left: auto; max-width: 70%;}
-        .ai-message { background-color: #f0f0f0; text-align: left; margin-right: auto; max-width: 70%;}
-        .ai-message .sender { font-weight: bold; color: #555; display: block; margin-bottom: 5px;}
-        .thought-message { background-color: #fff9c4; color: #777; font-style: italic; font-size: 0.9em; border-left: 3px solid #ffeb3b; padding-left: 10px; }
-        .tool-call-message { background-color: #e8eaf6; color: #3f51b5; font-size: 0.9em; border-left: 3px solid #7986cb; padding-left: 10px; }
-        .status-message { color: #888; font-style: italic; text-align: center; font-size: 0.9em; padding: 5px 0;}
-        #inputArea { display: flex; padding: 10px; }
-        #messageInput { flex-grow: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-right: 10px;}
-        #sendButton, #clearChatButton { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 5px; }
-        #sendButton:hover, #clearChatButton:hover { background-color: #0056b3; }
-        #clearChatButton { background-color: #dc3545; }
-        #clearChatButton:hover { background-color: #c82333; }
-        .message pre { white-space: pre-wrap; word-wrap: break-word; background: #2d2d2d; color: #f8f8f2; padding: 10px; border-radius: 5px; margin-top: 5px; }
-    </style>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💬</text></svg>">
 </head>
-<body>
-    <div id="chatContainer">
-        <div id="messages">
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen font-sans">
+    <div id="chatContainer" class="w-full max-w-2xl bg-white shadow-xl rounded-lg flex flex-col h-[calc(100vh-40px)] sm:h-auto sm:max-h-[90vh]">
+        <div id="messages" class="flex-grow h-96 overflow-y-auto p-6 space-y-4">
             <!-- Messages will appear here -->
         </div>
-        <div id="inputArea">
-            <input type="text" id="messageInput" placeholder="Ask Calculon...">
-            <button id="sendButton" title="Send Message"><i class="fas fa-paper-plane"></i></button>
-            <button id="clearChatButton" title="Clear Chat"><i class="fas fa-trash"></i></button>
+        <div id="inputArea" class="bg-gray-50 p-4 flex items-center border-t">
+            <input type="text" id="messageInput" placeholder="Ask Calculon..." class="flex-grow p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none">
+            <button id="sendButton" title="Send Message" class="ml-2 p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center justify-center">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+            <button id="clearChatButton" title="Clear Chat" class="ml-2 p-3 bg-red-500 text-white rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 flex items-center justify-center">
+                <i class="fas fa-trash"></i>
+            </button>
         </div>
     </div>
     <script src="/static/js/app.js"></script>

@@ -170,57 +170,57 @@ document.addEventListener('DOMContentLoaded', () => { // Ensure DOM is loaded be
         currentAiTextContentDiv = null;
 
         const messageWrapper = document.createElement('div');
-        messageWrapper.classList.add('message-wrapper', `${type}-wrapper`); // For potential outer styling/flex alignment
+        // Basic wrapper, flex alignment is handled by message type specific classes now if needed
+        // messageWrapper.classList.add('message-wrapper', `${type}-wrapper`);
 
         const messageElement = document.createElement('div');
-        messageElement.classList.add('message', `${type}-message`);
+        // Generic message classes removed, specific styles per type applied below
         
         let iconHtml = '';
-        let senderText = '';
+        let senderText = ''; // Not used for user messages directly in bubble
 
         switch (type) {
             case 'user':
-                messageWrapper.classList.add('flex', 'justify-end');
-                messageElement.classList.add('user-message');
+                messageWrapper.className = 'flex justify-end'; // Wrapper for alignment
+                messageElement.className = 'user-message bg-blue-500 text-white p-3 rounded-lg max-w-xs lg:max-w-md break-words shadow';
                 messageElement.textContent = text;
                 if (!isLoadingHistory) saveMessageToHistory({ type: 'user', content: text });
                 break;
             case 'thought':
-                messageWrapper.classList.add('flex', 'justify-start');
-                messageElement.classList.add('thought-message');
-                iconHtml = '<i class="fas fa-brain fa-fw mr-2"></i>';
+                messageWrapper.className = 'flex justify-start'; // Wrapper for alignment
+                messageElement.className = 'thought-message bg-yellow-100 border-l-4 border-yellow-400 text-yellow-800 p-3 rounded-r-lg max-w-xs lg:max-w-md text-sm italic break-words shadow';
+                iconHtml = '<i class="fas fa-brain fa-fw mr-1"></i>';
                 senderText = 'Calculon\'s Internal Monologue';
-                messageElement.innerHTML = `<span class="sender block font-semibold mb-1">${iconHtml}${senderText}</span>${escapeHtmlAndPreserveFormatting(text)}`;
+                messageElement.innerHTML = `<span class="sender block text-xs font-semibold mb-1 text-yellow-700">${iconHtml}${senderText}</span>${escapeHtmlAndPreserveFormatting(text)}`;
                 if (!isLoadingHistory) saveMessageToHistory({ type: 'thought', sender: senderText, content: text });
                 break;
             case 'tool_call':
-                 messageWrapper.classList.add('flex', 'justify-start');
-                messageElement.classList.add('tool-call-message');
-                iconHtml = '<i class="fas fa-wrench fa-fw mr-2"></i>';
+                messageWrapper.className = 'flex justify-start'; // Wrapper for alignment
+                messageElement.className = 'tool-call-message bg-indigo-100 border-l-4 border-indigo-400 text-indigo-800 p-3 rounded-r-lg max-w-xs lg:max-w-md text-sm break-words shadow';
+                iconHtml = '<i class="fas fa-wrench fa-fw mr-1"></i>';
                 senderText = 'Tool Interaction';
-                messageElement.innerHTML = `<span class="sender block font-semibold mb-1">${iconHtml}${senderText}</span>${escapeHtmlAndPreserveFormatting(text)}`;
+                messageElement.innerHTML = `<span class="sender block text-xs font-semibold mb-1 text-indigo-700">${iconHtml}${senderText}</span>${escapeHtmlAndPreserveFormatting(text)}`;
                 if (!isLoadingHistory) saveMessageToHistory({ type: 'tool_call', sender: senderText, content: text });
                 break;
             case 'status':
-                messageWrapper.classList.add('status-wrapper');
-                messageElement.classList.add('status-message');
+                messageWrapper.className = 'status-wrapper w-full'; // Wrapper for alignment
+                messageElement.className = 'status-message text-gray-500 text-xs italic text-center py-2';
                 messageElement.textContent = text;
-                // Avoid saving repetitive status messages or very initial ones if not desired.
-                // For now, saving all status messages.
                 if (!isLoadingHistory) saveMessageToHistory({ type: 'status', content: text });
                 break;
             case 'error':
-                messageWrapper.classList.add('flex', 'justify-start');
-                messageElement.classList.add('error-message');
-                iconHtml = '<i class="fas fa-exclamation-triangle fa-fw mr-2"></i>';
+                messageWrapper.className = 'flex justify-start'; // Wrapper for alignment
+                messageElement.className = 'error-message bg-red-100 border-l-4 border-red-400 text-red-800 p-3 rounded-r-lg max-w-xs lg:max-w-md text-sm break-words shadow';
+                iconHtml = '<i class="fas fa-exclamation-triangle fa-fw mr-1"></i>';
                 senderText = 'System Error';
-                messageElement.innerHTML = `<span class="sender block font-semibold mb-1">${iconHtml}${senderText}</span>${escapeHtmlAndPreserveFormatting(text)}`;
+                messageElement.innerHTML = `<span class="sender block text-xs font-semibold mb-1 text-red-700">${iconHtml}${senderText}</span>${escapeHtmlAndPreserveFormatting(text)}`;
                 if (!isLoadingHistory) saveMessageToHistory({ type: 'error', sender: senderText, content: text });
                 break;
         }
         
         // This part remains for display, AI chunks are handled by appendAiMessageChunk
-        if (type !== 'text_chunk') {
+        // AI messages are constructed in ensureAiMessageBubbleExists
+        if (type !== 'text_chunk' && type !== 'ai') {
             messageWrapper.appendChild(messageElement);
             messagesDiv.appendChild(messageWrapper);
         }
@@ -242,18 +242,20 @@ document.addEventListener('DOMContentLoaded', () => { // Ensure DOM is loaded be
     function ensureAiMessageBubbleExists() {
         if (!currentAiMessageElement) {
             const messageWrapper = document.createElement('div');
-            messageWrapper.classList.add('message-wrapper', 'ai-wrapper', 'flex', 'justify-start');
+            // Wrapper for alignment for AI messages
+            messageWrapper.className = 'flex justify-start';
 
             currentAiMessageElement = document.createElement('div');
-            currentAiMessageElement.classList.add('message', 'ai-message'); // Tailwind: bg-gray-200 text-gray-800
+            currentAiMessageElement.className = 'ai-message bg-gray-200 text-gray-800 p-3 rounded-lg max-w-xs lg:max-w-md break-words shadow';
             
             const senderSpan = document.createElement('span');
-            senderSpan.classList.add('sender', 'block', 'font-semibold', 'mb-1'); // Tailwind classes
-            senderSpan.innerHTML = '<i class="fas fa-robot fa-fw mr-2"></i>Calculon';
+            // Tailwind classes for AI sender
+            senderSpan.className = 'sender block text-xs font-semibold mb-1 text-gray-700';
+            senderSpan.innerHTML = '<i class="fas fa-robot fa-fw mr-1"></i>Calculon';
             currentAiMessageElement.appendChild(senderSpan);
 
-            currentAiTextContentDiv = document.createElement('div'); // This is where AI text goes
-            currentAiTextContentDiv.classList.add('ai-text-content');
+            currentAiTextContentDiv = document.createElement('div');
+            currentAiTextContentDiv.className = 'ai-text-content'; // No specific Tailwind here, inherits from parent
             currentAiMessageElement.appendChild(currentAiTextContentDiv);
             
             messageWrapper.appendChild(currentAiMessageElement);
@@ -264,6 +266,7 @@ document.addEventListener('DOMContentLoaded', () => { // Ensure DOM is loaded be
     function appendAiMessageChunk(textChunk) {
         ensureAiMessageBubbleExists();
         if (currentAiTextContentDiv) {
+            // Pre-existing logic for formatting is fine
             currentAiTextContentDiv.innerHTML += escapeHtmlAndPreserveFormatting(textChunk);
         }
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -298,16 +301,18 @@ document.addEventListener('DOMContentLoaded', () => { // Ensure DOM is loaded be
     function sendMessage() {
         const messageText = messageInput.value.trim();
         if (messageText && websocket && websocket.readyState === WebSocket.OPEN) {
-            addMessageToDisplay('user', messageText);
+            addMessageToDisplay('user', messageText); // User message already saved by addMessageToDisplay
+            // Add "Calculon is thinking..." message
+            addMessageToDisplay('status', 'Calculon is thinking...');
+
             console.log('Sending message via WebSocket:', messageText);
             websocket.send(JSON.stringify({ message: messageText }));
             messageInput.value = '';
-            // currentAiMessageElement = null; // Reset for next AI message. Done in addMessageToDisplay.
         } else if (!messageText) {
             console.log("Empty message, not sending.");
         } else {
             console.error('Cannot send message. WebSocket state:', websocket ? websocket.readyState : 'WebSocket not initialized', websocket);
-            addMessageToDisplay('error', 'Not connected to server. Cannot send message.', true);
+            addMessageToDisplay('error', 'Not connected to server. Cannot send message.'); // isError true is default for 'error' type
         }
     }
 
