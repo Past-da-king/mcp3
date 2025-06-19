@@ -1,6 +1,15 @@
-# calculator_mcp_server_streamablehttp.py (Refactored to import tools)
+import sys
+import os
+
+# Add project root to sys.path to allow absolute imports like 'from mcp.tools...'
+# This assumes calculater_mcp.py is in project_root/mcp/
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT) # Insert at the beginning
+
+# Now proceed with other imports
 import logging
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP # This import needs to be resolvable
 
 # Configure basic logging
 # This is important for the MCP server itself and if any direct logging is needed in this file.
@@ -42,6 +51,9 @@ except ImportError as e:
 
 if __name__ == "__main__":
     print(f"Starting CalculatorStreamableHttpServer (FastMCP application defined).")
+    # The following line might cause an error if tools fail to import due to sys.path issues resolved too late,
+    # or if mcp instance itself isn't created.
+    # Consider moving it after the try-except block for tool imports if issues persist.
     print(f"Registered tools with MCP server: {', '.join(mcp.tools.keys())}")
     print(f"When run with 'mcp run {__file__} --transport streamable-http',")
     print(f"it will likely use Uvicorn's default host/port (e.g., 127.0.0.1:8000) or PORT/HOST env vars.")
