@@ -90,33 +90,27 @@ def update_chat_history(websocket_id: int, new_history: list[genai_types.Content
     active_conversations[websocket_id] = new_history
     # logger.debug(f"Updated chat history for WebSocket ID: {websocket_id}. History length: {len(new_history)}")
 
-def clear_specific_chat_history(websocket_id: int):
-    if websocket_id in active_conversations:
-        active_conversations[websocket_id] = [] # Re-initialize to an empty list
-        logger.info(f"Server-side chat history explicitly cleared for WebSocket ID: {websocket_id}")
-    else:
-        logger.warning(f"Attempted to clear non-existent server-side chat history for WebSocket ID: {websocket_id}")
 
-
-async def process_user_message_stream(user_prompt: str, websocket: WebSocket, mcp_session: ClientSession): # mcp_session is now a parameter
+async def process_user_message_stream(user_prompt: str, websocket: WebSocket):
     ws_id = id(websocket)
     if not GOOGLE_API_KEY:
         await send_websocket_message(websocket, "error", "GEMINI_API_KEY is not configured on the server.")
         return
 
     try:
-        # MCP session is now established by the caller (websocket_chat_endpoint)
-        # We assume mcp_session is initialized and ready to use.
+        await send_websocket_message(websocket, "status", f"Attempting to connect to MCP server at {MCP_SERVER_URL}...")
+        async with streamablehttp_client(MCP_SERVER_URL) as (read, write, _http_session):
+            await send_websocket_message(websocket, "status", "Connected to MCP server.")
+            async with ClientSession(read, write) as mcp_session:
+                await mcp_session.initialize()
+                await send_websocket_message(websocket, "status", "MCP session initialized.")
 
-        # It might be useful to list tools here if not done per-connection,
-        # but if mcp_session is persistent for the WebSocket, this might be redundant on every message.
-        # For now, let's assume the AI has the tool list from the initial setup or it's part of system_instruction.
-        # list_tools_result = await mcp_session.list_tools()
-        # if list_tools_result and list_tools_result.tools:
-        #     tool_names = [t.name for t in list_tools_result.tools if isinstance(t, mcp_types.Tool)]
-        #     print(f"MCP Tools available for ws_id {ws_id}: {tool_names}")
+                list_tools_result = await mcp_session.list_tools()
+                if list_tools_result and list_tools_result.tools:
+                    tool_names = [t.name for t in list_tools_result.tools if isinstance(t, mcp_types.Tool)]
+                    print(f"MCP Tools available: {tool_names}")
                 
-        client = genai.Client(api_key=GOOGLE_API_KEY)
+                client = genai.Client(api_key=GOOGLE_API_KEY)
                 system_instruction_text = (
                     "You are 'Calculon,' a slightly grumpy but extremely precise AI mathematician. "
                     "You tolerate requests for calculations, but you expect them to be clear. "
