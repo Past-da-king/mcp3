@@ -23,6 +23,28 @@ from mcp_client_logic import (
     send_websocket_message # Added
 )
 
+# --- BEGIN DEBUG CODE ---
+try:
+    # Attempt to import the module itself to inspect it
+    import mcp_client_logic
+    print("DEBUG: Successfully imported 'mcp_client_logic' module itself.")
+    print(f"DEBUG: Contents of mcp_client_logic module (via dir()): {dir(mcp_client_logic)}")
+
+    if hasattr(mcp_client_logic, 'clear_specific_chat_history'):
+        print("DEBUG: 'clear_specific_chat_history' IS found in mcp_client_logic using hasattr().")
+    else:
+        print("DEBUG: 'clear_specific_chat_history' IS NOT found in mcp_client_logic using hasattr().")
+
+    # Explicitly test the problematic import again within a try-except
+    from mcp_client_logic import clear_specific_chat_history as csch_test_import
+    print(f"DEBUG: Successfully imported 'clear_specific_chat_history' directly via from-import: {type(csch_test_import)}")
+
+except ImportError as e_debug:
+    print(f"DEBUG: ImportError during debug block: {e_debug}")
+except Exception as e_general_debug:
+    print(f"DEBUG: General error during debug block: {e_general_debug}")
+# --- END DEBUG CODE ---
+
 app = FastAPI()
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -75,29 +97,19 @@ async def websocket_chat_endpoint(websocket: WebSocket):
                 # The main message processing loop, now nested inside MCP session contexts
                 while True:
                     user_message_json = await websocket.receive_text()
-            user_message_data = json.loads(user_message_json)
-
-            if user_message_data.get("action") == "clear_server_history":
-                # ws_id is already defined when connection is accepted
-                clear_specific_chat_history(ws_id)
-                # Optional: Send a confirmation back to the client
-                # await send_websocket_message(websocket, "status", "Server-side history cleared.")
-                print(f"Server-side history cleared for WebSocket ID: {ws_id} due to client request.")
-                continue # Wait for next message
-
                     user_message_data = json.loads(user_message_json)
 
                     if user_message_data.get("action") == "clear_server_history":
                         clear_specific_chat_history(ws_id)
                         print(f"Server-side history cleared for WebSocket ID: {ws_id} due to client request.")
                         await send_websocket_message(websocket, "status", "Server-side chat history cleared.")
-                        continue
+                        continue # Wait for next message
 
                     user_prompt = user_message_data.get("message")
                     if user_prompt:
                         print(f"Processing prompt '{user_prompt}' for WebSocket ID: {ws_id} with active MCP session.")
                         await process_user_message_stream(user_prompt, websocket, mcp_session) # Pass the session
-                    elif "action" not in user_message_data:
+                    elif "action" not in user_message_data: # Avoid error on our own actions
                         await send_websocket_message(websocket, "error", "Empty message received (no prompt or action).")
 
     except McpError as mcp_e: # Catch MCP connection/initialization errors
