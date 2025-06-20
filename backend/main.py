@@ -18,7 +18,6 @@ from mcp_client_logic import (
     process_user_message_stream,
     initialize_chat_history,
     cleanup_chat_history,
-    clear_specific_chat_history,
     MCP_SERVER_URL, # Added
     send_websocket_message # Added
 )
