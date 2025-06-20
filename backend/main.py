@@ -7,13 +7,20 @@ import uvicorn
 import os
 import sys
 import json
+import traceback # Added
+from mcp.client.streamable_http import streamablehttp_client # Added
+from mcp import ClientSession # Added
+from mcp.shared.exceptions import McpError # Added
 
 # Add backend directory to sys.path to import mcp_client_logic
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from mcp_client_logic import (
     process_user_message_stream,
     initialize_chat_history,
-    cleanup_chat_history
+    cleanup_chat_history,
+    clear_specific_chat_history,
+    MCP_SERVER_URL, # Added
+    send_websocket_message # Added
 )
 
 app = FastAPI()
@@ -53,32 +60,68 @@ async def websocket_chat_endpoint(websocket: WebSocket):
     initialize_chat_history(ws_id)
     print(f"WebSocket connection accepted from {websocket.client.host}:{websocket.client.port}, ID: {ws_id}")
 
+    mcp_session_active = False # Flag to track if session was successfully started
     try:
-        while True:
-            user_message_json = await websocket.receive_text()
+        # Attempt to connect to MCP server ONCE per WebSocket session
+        await send_websocket_message(websocket, "status", f"Attempting to connect to MCP server at {MCP_SERVER_URL}...")
+        async with streamablehttp_client(MCP_SERVER_URL) as (read, write, _http_session):
+            await send_websocket_message(websocket, "status", "Connected to MCP server's HTTP transport.")
+            async with ClientSession(read, write) as mcp_session:
+                await mcp_session.initialize()
+                await send_websocket_message(websocket, "status", "MCP session initialized and ready.")
+                mcp_session_active = True
+                print(f"MCP session established for WebSocket ID: {ws_id}")
+
+                # The main message processing loop, now nested inside MCP session contexts
+                while True:
+                    user_message_json = await websocket.receive_text()
             user_message_data = json.loads(user_message_json)
-            user_prompt = user_message_data.get("message")
 
-            if user_prompt:
-                print(f"Received prompt via WebSocket: {user_prompt}")
-                # This function will handle connecting to MCP, Gemini, and streaming back
-                await process_user_message_stream(user_prompt, websocket)
-            else:
-                await websocket.send_json({"type": "error", "content": "Empty message received."})
+            if user_message_data.get("action") == "clear_server_history":
+                # ws_id is already defined when connection is accepted
+                clear_specific_chat_history(ws_id)
+                # Optional: Send a confirmation back to the client
+                # await send_websocket_message(websocket, "status", "Server-side history cleared.")
+                print(f"Server-side history cleared for WebSocket ID: {ws_id} due to client request.")
+                continue # Wait for next message
 
+                    user_message_data = json.loads(user_message_json)
+
+                    if user_message_data.get("action") == "clear_server_history":
+                        clear_specific_chat_history(ws_id)
+                        print(f"Server-side history cleared for WebSocket ID: {ws_id} due to client request.")
+                        await send_websocket_message(websocket, "status", "Server-side chat history cleared.")
+                        continue
+
+                    user_prompt = user_message_data.get("message")
+                    if user_prompt:
+                        print(f"Processing prompt '{user_prompt}' for WebSocket ID: {ws_id} with active MCP session.")
+                        await process_user_message_stream(user_prompt, websocket, mcp_session) # Pass the session
+                    elif "action" not in user_message_data:
+                        await send_websocket_message(websocket, "error", "Empty message received (no prompt or action).")
+
+    except McpError as mcp_e: # Catch MCP connection/initialization errors
+        print(f"MCP Connection/Initialization Error for WebSocket ID {ws_id}: {mcp_e}")
+        traceback.print_exc()
+        await send_websocket_message(websocket, "error", f"Could not establish session with MCP server: {str(mcp_e)}")
     except WebSocketDisconnect:
         print(f"WebSocket connection closed for ID: {ws_id}")
-    except Exception as e:
+    except Exception as e: # Catch any other unexpected errors during MCP setup or general handling
         print(f"Error in WebSocket handler for ID {ws_id}: {e}")
-        # It's good practice to try and inform the client if possible,
-        # but the connection might already be compromised.
+        traceback.print_exc()
         try:
-            await websocket.send_json({"type": "error", "content": f"Server error: {str(e)}"})
-        except Exception: # Catch error if send fails (e.g. broken pipe)
+            await send_websocket_message(websocket, "error", f"Server error: {str(e)}")
+        except Exception:
             pass
-        # Ensure close is called if not a disconnect exception
-        if not isinstance(e, WebSocketDisconnect):
-            await websocket.close(code=1011) # Internal server error
+        if not isinstance(e, WebSocketDisconnect): # Ensure close if not already a disconnect
+            await websocket.close(code=1011)
     finally:
         cleanup_chat_history(ws_id)
+        if not mcp_session_active:
+            print(f"MCP session was not activated for WebSocket ID {ws_id}. Chat may have been non-functional for MCP tasks.")
+            # Optionally inform client and close if connection was accepted but MCP failed.
+            # This part might need refinement based on desired client experience if MCP fails post-connection.
+            # if websocket.client_state == WebSocketState.CONNECTED:
+            #    await send_websocket_message(websocket, "error", "Failed to maintain MCP session. Please refresh.")
+            #    await websocket.close(code=1011)
         print(f"WebSocket resources cleaned up for ID: {ws_id}")
