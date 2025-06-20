@@ -15,7 +15,7 @@ os.makedirs(PLOT_DIR, exist_ok=True)
 logger.info(f"Plot directory for plotting.py set to: {PLOT_DIR}")
 
 @mcp.tool()
-def plot_expression(expression_str: str, variable_str: str, min_val_str: str, max_val_str: str) -> str:
+def plot_expression(expression_str: str, variable_str: str, min_val_str: str, max_val_str: str) -> dict:
     """
     Plots a mathematical expression over a given range and returns a URL to the image.
     Expression, variable, and min/max values must be strings.
@@ -27,7 +27,7 @@ def plot_expression(expression_str: str, variable_str: str, min_val_str: str, ma
         max_val_str (str): The maximum value of the range for the variable (e.g., "10").
 
     Returns:
-        str: A URL to the saved plot image (e.g., "/static/plots/plot_timestamp.png") or an error message.
+            dict: A dictionary containing either {"plot_url": "URL_to_image"} on success or {"error": "error_message"} on failure.
     """
     logger.info(
         f"Tool 'plot_expression' called with expression='{expression_str}', variable='{variable_str}', "
@@ -46,11 +46,11 @@ def plot_expression(expression_str: str, variable_str: str, min_val_str: str, ma
             max_val = float(max_val_str)
         except ValueError:
             logger.error("Invalid min/max values: must be numbers.")
-            return "Error: min_val and max_val must be valid numbers."
+            return {"error": "min_val and max_val must be valid numbers."}
 
         if min_val >= max_val:
             logger.error("Invalid range: min_val must be less than max_val.")
-            return "Error: min_val must be less than max_val."
+            return {"error": "min_val must be less than max_val."}
 
         x_vals = np.linspace(min_val, max_val, 300)
 
@@ -68,7 +68,7 @@ def plot_expression(expression_str: str, variable_str: str, min_val_str: str, ma
                 other_symbols = expr.free_symbols - {x_sym}
                 if other_symbols:
                     logger.error(f"Expression contains unassigned variables: {other_symbols}. Cannot plot.")
-                    return f"Error: Expression contains unassigned variables: {', '.join(str(s) for s in other_symbols)}. Please define them or ensure they are part of the main variable '{variable_str}'."
+                    return {"error": f"Error: Expression contains unassigned variables: {', '.join(str(s) for s in other_symbols)}. Please define them or ensure they are part of the main variable '{variable_str}'."}
 
             if not expr.free_symbols:
                  y_val_const = float(expr.evalf())
@@ -99,13 +99,13 @@ def plot_expression(expression_str: str, variable_str: str, min_val_str: str, ma
 
         plot_url = f"/static/plots/{filename}"
         logger.info(f"Tool 'plot_expression' result: Plot saved at {filepath}, URL: {plot_url}")
-        return plot_url
+        return {"plot_url": plot_url}
 
     except (sympy.SympifyError, TypeError, ValueError) as e:
         logger.error(f"Error in plot_expression tool (parsing, type, or value error): {e}")
-        return f"Error during plotting (check expression, variable, or range): {str(e)}"
+        return {"error": f"Error during plotting (check expression, variable, or range): {str(e)}"}
     except Exception as e:
         logger.error(f"Unexpected error in plot_expression tool: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        return f"Error during plotting: {str(e)}"
+        return {"error": f"Error during plotting: {str(e)}"}
